@@ -9,6 +9,7 @@ st.set_page_config(page_title="Compositor de Emojis IA", page_icon="🎵", layou
 
 st.title("🎵 Compositor de Música con Emojis")
 st.write("¡Escribe una secuencia de emojis y Gemini la transformará en una melodía única!")
+
 # --- MINI TUTORIAL PARA ENCONTRAR LA API KEY ---
 with st.expander("🔑 ¿No tienes tu API Key de Gemini? Sigue estos 3 pasos rápidos"):
     st.markdown("""
@@ -21,13 +22,12 @@ with st.expander("🔑 ¿No tienes tu API Key de Gemini? Sigue estos 3 pasos rá
 # ------------------------------------------------
 
 # 1. Entrada de la API Key de forma segura en la interfaz
-# Al subirlo a la nube, es mejor que cada quien ponga su clave o usar Secrets.
 api_key = st.text_input("Introduce tu Gemini API Key:", type="password")
 
 # 2. Entrada de emojis del usuario
 emojis_usuario = st.text_input("Escribe tus emojis aquí (Ej: 🔥🎸😎 o 🥀💔🌧️):", "🚀🌌🛸")
 
-# Función para generar el MIDI (La misma que ya probaste)
+# Función blindada para generar el MIDI
 def crear_archivo_midi(datos_musicales, nombre_archivo="melodia.mid"):
     midi = MIDIFile(1) 
     track = 0
@@ -35,15 +35,28 @@ def crear_archivo_midi(datos_musicales, nombre_archivo="melodia.mid"):
     canal = 0
     volumen = 100 
     
-    bpm = datos_musicales.get("bpm", 120)
+    # Extraer el BPM de forma segura
+    bpm_extraido = datos_musicales.get("bpm") or datos_musicales.get("BPM") or datos_musicales.get("ritmo") or 120
+    try:
+        bpm = int(bpm_extraido)
+    except:
+        bpm = 120
+        
     midi.addTempo(track, tiempo_canal, bpm)
     
-    for n in datos_musicales["notes"]: # Ajustado a 'notes' en inglés por si la IA prefiere ese estándar
-        nota_midi = n.get("nota") or n.get("note")
-        inicio = n.get("tiempo_inicio") or n.get("start_time")
-        duracion = n.get("duracion") or n.get("duration")
-        midi.addNote(track, canal, nota_midi, inicio, duracion, volumen)
+    # Extraer las notas de forma segura (soporta inglés y español)
+    lista_notas = datos_musicales.get("notes") or datos_musicales.get("notas") or []
     
+    for n in lista_notas:
+        try:
+            nota_midi = int(n.get("nota") or n.get("note") or 60)
+            inicio = float(n.get("tiempo_inicio") or n.get("start_time") or n.get("tiempo") or 0.0)
+            duracion = float(n.get("duracion") or n.get("duration") or 1.0)
+            
+            midi.addNote(track, canal, nota_midi, inicio, duracion, volumen)
+        except:
+            continue # Si una nota viene mal, la salta y no rompe todo
+            
     with open(nombre_archivo, "wb") as archivo:
         midi.writeFile(archivo)
     return nombre_archivo
@@ -74,10 +87,10 @@ if st.button("✨ ¡Componer Melodía!"):
                 }}
                 
                 Reglas:
-                - "nota": Números MIDI estándar (entre 45 y 85 para que suene armónico).
+                - "nota": Números MIDI estándar (entre 45 y 85).
                 - "duracion": Duración en pulsos (ej: 0.5, 1.0, 2.0).
                 - "tiempo_inicio": El pulso en el que arranca la nota.
-                - Responde SOLO el JSON, sin texto de introducción ni marcas de código Markdown.
+                - Responde SOLO el JSON, sin texto extra ni marcas ```json.
                 """
                 
                 respuesta = client.models.generate_content(
@@ -90,15 +103,23 @@ if st.button("✨ ¡Componer Melodía!"):
                 
                 datos_musicales = json.loads(respuesta.text)
                 
-                # Mostrar datos de la composición en la interfaz
-                st.success(f"🎼 ¡Composición lista! Ritmo estimado: {datos_musicales.get('bpm')} BPM")
-                nombre_archivo = crear_archivo_midi(datos_musicales)
+                # Mostrar éxito
+                st.success(f"🎼 ¡Composición lista! Ritmo estimado: {datos_musicales.get('bpm', 120)} BPM")
                 
-                # Reproducir el archivo MIDI
-                with open(nombre_archivo, "rb") as audio_file:
-                    st.audio(audio_file, format="audio/midi")
+                # Generar el archivo físico
+                nombre_archivo = crear_archivo_midi(datos_musicales, "cancion_emojis.mid")
+                
+                # --- SOLUCIÓN: Botón de descarga en vez de reproductor roto ---
+                with open(nombre_archivo, "rb") as file:
+                    st.download_button(
+                        label="📥 Descargar archivo MIDI",
+                        data=file,
+                        file_name="mi_melodia_emoji.mid",
+                        mime="audio/midi"
+                    )
+                st.info("💡 ¡Descarga el archivo y escúchalo en tu reproductor favorito (como VLC)!")
                 
             except json.JSONDecodeError:
                 st.error("❌ Gemini no respondió con un JSON válido. Intenta de nuevo.")
             except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
+                st.error(f"❌ Error al componer: {str(e)}")
