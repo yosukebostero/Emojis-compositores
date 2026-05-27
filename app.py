@@ -92,48 +92,13 @@ if st.button("✨ ¡Componer Melodía!"):
                 
                 # Mostrar datos de la composición en la interfaz
                 st.success(f"🎼 ¡Composición lista! Ritmo estimado: {datos_musicales.get('bpm')} BPM")
-                
                 nombre_archivo = crear_archivo_midi(datos_musicales)
                 
-                with open(nombre_archivo, "rb") as f:
-                    st.download_button(
-                        label="⬇️ Descargar melodía (MIDI)",
-                        data=f.read(),
-                        file_name=nombre_archivo,
-                        mime="audio/midi"
-                    )
+                # Reproducir el archivo MIDI
+                with open(nombre_archivo, "rb") as audio_file:
+                    st.audio(audio_file, format="audio/midi")
+                
             except json.JSONDecodeError:
-                st.error("❌ Error: Gemini no devolvió un JSON válido. Intenta nuevamente.")
+                st.error("❌ Gemini no respondió con un JSON válido. Intenta de nuevo.")
             except Exception as e:
-                st.error(f"❌ Error al componer: {str(e)}")
-
-
-def crear_archivo_midi(datos_musicales, nombre_archivo="melodia.mid"):
-    midi = MIDIFile(1) 
-    track = 0
-    tiempo_canal = 0
-    canal = 0
-    volumen = 100 
-    
-    bpm = datos_musicales.get("bpm", 120)
-    midi.addTempo(track, tiempo_canal, bpm)
-    
-    # Buscamos la lista de notas, ya sea que la IA escribió 'notes' o 'notas'
-    lista_notas = datos_musicales.get("notes") or datos_musicales.get("notas") or []
-    
-    for n in lista_notas:
-        # Buscamos la nota en español o inglés. Si da None, por defecto pone 60 (Do central)
-        nota_midi = n.get("nota") or n.get("note") or 60
-        
-        # Buscamos el tiempo de inicio. Si da None, por defecto pone 0.0
-        inicio = n.get("tiempo_inicio") or n.get("start_time") or n.get("tiempo") or 0.0
-        
-        # Buscamos la duración. Si da None, por defecto pone 1.0 (una negra)
-        duracion = n.get("duracion") or n.get("duration") or 1.0
-        
-        # Aseguramos que todo sea del tipo de dato correcto (int o float) para evitar el error
-        midi.addNote(track, canal, int(nota_midi), float(inicio), float(duracion), volumen)
-    
-    with open(nombre_archivo, "wb") as archivo:
-        midi.writeFile(archivo)
-    return nombre_archivo
+                st.error(f"❌ Error: {str(e)}")
