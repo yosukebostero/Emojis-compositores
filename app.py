@@ -9,6 +9,16 @@ st.set_page_config(page_title="Compositor de Emojis IA", page_icon="🎵", layou
 
 st.title("🎵 Compositor de Música con Emojis")
 st.write("¡Escribe una secuencia de emojis y Gemini la transformará en una melodía única!")
+# --- MINI TUTORIAL PARA ENCONTRAR LA API KEY ---
+with st.expander("🔑 ¿No tienes tu API Key de Gemini? Sigue estos 3 pasos rápidos"):
+    st.markdown("""
+    1. **Entra a la plataforma:** Ve a [Google AI Studio](https://ai.google.dev/) e inicia sesión con tu cuenta de Gmail.
+    2. **Crea tu llave:** Dale clic al botón azul que dice **"Get API Key"** (Obtener clave de API) y luego a **"Create API Key"**.
+    3. **Genera el código:** Elige la opción *"Create API key in new project"*. Te saldrá un código largo lleno de letras y números. ¡Cópialo y pégalo aquí abajo!
+    
+    *⚠️ **Nota de seguridad:** Tu clave no se guardará en ningún lado, solo se usa en el momento para que la IA componga tu música.*
+    """)
+# ------------------------------------------------
 
 # 1. Entrada de la API Key de forma segura en la interfaz
 # Al subirlo a la nube, es mejor que cada quien ponga su clave o usar Secrets.
@@ -83,19 +93,47 @@ if st.button("✨ ¡Componer Melodía!"):
                 # Mostrar datos de la composición en la interfaz
                 st.success(f"🎼 ¡Composición lista! Ritmo estimado: {datos_musicales.get('bpm')} BPM")
                 
-                # Generar archivo
-                nombre_midi = crear_archivo_midi(datos_musicales, "cancion_emojis.mid")
+                nombre_archivo = crear_archivo_midi(datos_musicales)
                 
-                # Botón de descarga en Streamlit
-                with open(nombre_midi, "rb") as file:
+                with open(nombre_archivo, "rb") as f:
                     st.download_button(
-                        label="📥 Descargar archivo MIDI",
-                        data=file,
-                        file_name="mi_melodia_emoji.mid",
+                        label="⬇️ Descargar melodía (MIDI)",
+                        data=f.read(),
+                        file_name=nombre_archivo,
                         mime="audio/midi"
                     )
-                    
-                st.info("💡 Tip: Puedes arrastrar este archivo descargado a cualquier reproductor como VLC o cargarlo en un secuenciador online para escucharlo.")
-                
+            except json.JSONDecodeError:
+                st.error("❌ Error: Gemini no devolvió un JSON válido. Intenta nuevamente.")
             except Exception as e:
-                st.error(f"Hubo un problema al componer: {e}")
+                st.error(f"❌ Error al componer: {str(e)}")
+
+
+def crear_archivo_midi(datos_musicales, nombre_archivo="melodia.mid"):
+    midi = MIDIFile(1) 
+    track = 0
+    tiempo_canal = 0
+    canal = 0
+    volumen = 100 
+    
+    bpm = datos_musicales.get("bpm", 120)
+    midi.addTempo(track, tiempo_canal, bpm)
+    
+    # Buscamos la lista de notas, ya sea que la IA escribió 'notes' o 'notas'
+    lista_notas = datos_musicales.get("notes") or datos_musicales.get("notas") or []
+    
+    for n in lista_notas:
+        # Buscamos la nota en español o inglés. Si da None, por defecto pone 60 (Do central)
+        nota_midi = n.get("nota") or n.get("note") or 60
+        
+        # Buscamos el tiempo de inicio. Si da None, por defecto pone 0.0
+        inicio = n.get("tiempo_inicio") or n.get("start_time") or n.get("tiempo") or 0.0
+        
+        # Buscamos la duración. Si da None, por defecto pone 1.0 (una negra)
+        duracion = n.get("duracion") or n.get("duration") or 1.0
+        
+        # Aseguramos que todo sea del tipo de dato correcto (int o float) para evitar el error
+        midi.addNote(track, canal, int(nota_midi), float(inicio), float(duracion), volumen)
+    
+    with open(nombre_archivo, "wb") as archivo:
+        midi.writeFile(archivo)
+    return nombre_archivo
